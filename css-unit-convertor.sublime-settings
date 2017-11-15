@@ -1,0 +1,8 @@
+{
+    "number": 100,
+    "operator": "/",
+    "from_unit": "px",
+    "to_unit": "rem",
+    "max_fraction_length": 8,
+    "available_file_types": [".css", ".less", ".sass", ".scss", ".html", ".php"]
+}
