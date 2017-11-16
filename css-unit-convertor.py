@@ -34,7 +34,7 @@ class CssUnitConvertorCommand(sublime_plugin.EventListener):
         return None
 
     def on_query_completions(self, view, prefix, locations):
-        # print('css unit convertion start {0}, {1}'.format(prefix, locations))
+        print('css unit convertion start {0}, {1}'.format(prefix, locations))
 
         number = get_setting(view, 'number')
         operator = get_setting(view, 'operator')
@@ -52,9 +52,10 @@ class CssUnitConvertorCommand(sublime_plugin.EventListener):
         lastCompletion["needFix"] = False
         location = locations[0]
         snippets = []
+        need_fix = False
 
         # get from_unit match
-        match = re.compile("([\d.]+)" + from_unit).match(prefix)
+        match = re.compile("([\d\.]+)" + from_unit).match(prefix)
         if match:
             lineLocation = view.line(location)
             line = view.substr(sublime.Region(lineLocation.a, location))
@@ -66,11 +67,12 @@ class CssUnitConvertorCommand(sublime_plugin.EventListener):
                 segmentStart = 0
             segmentStr = line[segmentStart:location]
 
-            segment = re.compile("([\d.])+" + value).search(segmentStr)
+            segment = re.compile("([\d\.])+" + value).search(segmentStr)
             if segment:
                 value = segment.group(0)
                 start = lineLocation.a + segmentStart + 0 + segment.start(0)
                 lastCompletion["needFix"] = True
+                need_fix = True
             else:
                 start = location
 
@@ -86,22 +88,35 @@ class CssUnitConvertorCommand(sublime_plugin.EventListener):
 
             to_value = round(operations[operator](float(value), number), max_fraction_length)
             to_value = int(to_value) if to_value == int(to_value) else to_value
+            to_value = str(to_value)
 
-            # save them for replace fix
-            lastCompletion["value"] = str(to_value) + to_unit
-            lastCompletion["region"] = sublime.Region(start, location)
+            if need_fix and to_value.index('.') > 0:
+                # save them for replace fix
+                lastCompletion["value"] = to_value[:to_value.index('.') + 1]
+                snippets += [(value + from_unit + ' -('+operator+str(number)+')-> ' + to_value + to_unit, to_value[to_value.index('.') + 1:] + to_unit)]
+                lastCompletion["region"] = sublime.Region(start, start + value.index('.') + 1)
+            else:
+                # save them for replace fix
+                lastCompletion["value"] = to_value + to_unit
+                snippets += [(value + from_unit + ' -('+operator+str(number)+')-> ' + to_value + to_unit, to_value + to_unit)]
+                lastCompletion["region"] = sublime.Region(start, location)
+            # lastCompletion["region"] = sublime.Region(start, location)
 
             # set completion snippet
-            snippets += [(value + from_unit + ' -> ' + to_unit + '(' + operator + str(number) + ')', str(to_value) + to_unit)]
+            # snippets += [(value + from_unit + ' -> ' + to_unit + '(' + operator + str(number) + ')', str(to_value) + to_unit)]
 
-        # print("css unit convertion: {0}".format(snippets))
+        print("css unit convertion: {0}".format(snippets))
         return snippets
 
 class ReplaceUnitCommand(sublime_plugin.TextCommand):
     def run(self, edit):
+        global lastCompletion
         needFix = lastCompletion["needFix"]
         if needFix == True:
             value = lastCompletion["value"]
             region = lastCompletion["region"]
+            print('substr' + self.view.substr(region))
             self.view.replace(edit, region, value)
+            print('region: {0}, value: {1}'.format(region, value))
             self.view.end_edit(edit)
+            lastCompletion = {"needFix": False, "value": None, "region": None}
